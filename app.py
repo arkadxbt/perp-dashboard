@@ -257,17 +257,13 @@ def _color_pct(val) -> str:
     return "color: #eee"
 
 
-def style_df(df: pd.DataFrame) -> pd.io.formats.style.Styler:
-    """Apply conditional formatting to the display dataframe."""
+def style_df(df: pd.DataFrame):
+    """Apply conditional formatting to the display dataframe (Pandas 2.x compatible)."""
     pct_cols = [c for c in df.columns if c != "Symbol"]
-
-    def color_map(val):
-        return _color_pct(val)
-
-    return df.style.applymap(color_map, subset=pct_cols).format(
-        {c: lambda v: _fmt_pct(v) for c in pct_cols},
-        na_rep="—"
-    )
+    # .map() replaces deprecated .applymap() in Pandas >= 2.1
+    styler = df.style.map(_color_pct, subset=pct_cols)
+    styler = styler.format({c: _fmt_pct for c in pct_cols}, na_rep="—")
+    return styler
 
 
 # ──────────────────────────────────────────────
@@ -390,11 +386,12 @@ def main():
     # Numeric columns (all except Symbol)
     num_cols = [c for c in display_df.columns if c != "Symbol"]
 
-    styled = display_df.style.background_gradient(
-        cmap="RdYlGn", subset=num_cols, axis=0
-    ).format(
-        {c: lambda v: _fmt_pct(v) for c in num_cols},
-        na_rep="—"
+    # background_gradient raises ValueError on NaN-only columns, so we use
+    # .map() (replaces deprecated .applymap() in Pandas >= 2.1) instead.
+    styled = (
+        display_df.style
+        .map(_color_pct, subset=num_cols)
+        .format({c: _fmt_pct for c in num_cols}, na_rep="—")
     )
 
     st.dataframe(
