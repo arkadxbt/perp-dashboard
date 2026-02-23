@@ -1,65 +1,48 @@
 # 📊 Perp Dashboard — Bybit Linear Perpetuals
 
-Realtime tracker for Bybit USDT-margined linear perpetual pairs.  
-Tracks **Price %**, **Open Interest %**, and **Funding Rate** across 6 timeframes.
+Realtime tracker for Bybit USDT-margined linear perpetual pairs.
 
----
+## Architecture
 
-## Data sources (Bybit V5 public REST — no API key needed)
-
-| Data | Endpoint |
-|------|----------|
-| Symbol list + 24h volume | `GET /v5/market/tickers?category=linear` |
-| Price % (OHLC) | `GET /v5/market/kline` |
-| Open Interest % | `GET /v5/market/open-interest` |
-| Funding Rate | `GET /v5/market/funding/history` |
-
-### Timeframe mapping
-
-| UI label | Kline interval | OI intervalTime |
-|----------|---------------|-----------------|
-| 5m  | `5`   | `5min` |
-| 15m | `15`  | `15min` |
-| 1h  | `60`  | `1h` |
-| 2h  | `120` | *derived from 1h* (`OI% 2h*`) |
-| 4h  | `240` | `4h` |
-| 1d  | `D`   | `1d` |
-
-> **Note:** Bybit V5 OI endpoint has no native `2h` interval.  
-> `OI% 2h*` is approximated by comparing OI at `t=now` vs `t=2h ago` using 1h-resolution data.
-
----
-
-## Deploy to Streamlit Community Cloud (free)
-
-```bash
-# 1. Push to GitHub
-git clone https://github.com/arkadxbt/perp-dashboard
-cd perp-dashboard
-# copy app.py, requirements.txt, README.md
-git add . && git commit -m "bybit v5 rewrite" && git push
-
-# 2. Go to share.streamlit.io → New app
-#    Repo: arkadxbt/perp-dashboard | Branch: main | File: app.py
-#    Click Deploy ✅
+```
+Streamlit Cloud Server          User's Browser
+─────────────────────           ───────────────────────────
+app.py                  →       HTML + JS dashboard
+(serves static HTML)            │
+                                └── fetch() → api.bybit.com
+                                    (public, no IP block)
 ```
 
-No secrets or environment variables needed.
+**Why browser-side?** Both Binance and Bybit block Streamlit Cloud's AWS IP range (HTTP 403/451). By moving all API calls to the browser via JavaScript `fetch()`, we bypass the server-side block entirely. Bybit's public market data endpoints support CORS.
 
----
+## Features
 
-## Run locally
+- Top-N USDT linear perpetuals by 24h turnover
+- 6 timeframes: 5m · 15m · 1h · 2h · 4h · 1d
+- Price % (close-to-close per TF)
+- OI % (open interest change per TF; 2h derived from 1h)
+- Funding Rate: last value + delta vs previous
+- Sortable columns, search, auto-refresh (5–120s)
+
+## Deploy
 
 ```bash
-pip install -r requirements.txt
+# requirements.txt only needs streamlit
+pip install streamlit
+
+# local run
 streamlit run app.py
+
+# Streamlit Cloud: push to GitHub, deploy normally
+# No secrets or API keys needed
 ```
 
----
+## Column notes
 
-## Rate limit notes
-
-- Bybit market data: **120 requests/min** per IP (conservative estimate)
-- Top-50 symbols × ~9 requests = 450 req/cycle
-- At 20s refresh → ~22 req/s → well within limits
-- `SEMAPHORE_LIMIT=10` caps concurrent in-flight requests
+| Column | Source |
+|--------|--------|
+| P% {tf} | `/v5/market/kline` interval=5/15/60/120/240/D |
+| OI% {tf} | `/v5/market/open-interest` intervalTime=5min/15min/1h/4h/1d |
+| OI% 2h* | Derived: 1h OI index[0] vs index[2] |
+| FR Last | `/v5/market/funding/history` last entry × 100 |
+| FR Δ | last FR − previous FR (pp) |
