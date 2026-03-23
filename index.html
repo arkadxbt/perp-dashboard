@@ -202,12 +202,13 @@ tr.dr.sel td{background:#0d1a30 !important;border-bottom-color:#1a3060;}
     <div id="d-top">
       <button id="d-close" onclick="closeD()">✕</button>
       <div id="d-sym"><span id="d-sn">—</span><span class="q">USDT PERP</span></div>
+      <div id="d-price" style="font-family:var(--sans);font-size:22px;font-weight:700;color:var(--cyan);letter-spacing:-.5px;margin:4px 0 2px;">—</div>
       <div id="d-meta"></div>
     </div>
     <div id="d-stats"></div>
     <div id="d-cw">
-      <div class="dsl2">OI History · 15m bars · TSİ</div>
-      <canvas id="d-canvas" height="240"></canvas>
+      <div class="dsl2" style="display:flex;justify-content:space-between;align-items:center"><span>OI History · 15m bars · TSİ</span><span style="font-size:9px;color:var(--muted);font-weight:400;letter-spacing:0">🖱 kaydır · scroll=zoom · pinch</span></div>
+      <canvas id="d-canvas" height="240" style="cursor:crosshair"></canvas>
     </div>
     <div id="d-tf">
       <div class="dsl2" style="margin-bottom:8px">Timeframe Breakdown</div>
@@ -253,11 +254,11 @@ async function getTop(n){
 async function fBB(sym){
   const kP=TFS.map(tf=>bbG('/v5/market/kline',{category:'linear',symbol:sym,interval:BBK[tf],limit:3}).catch(()=>null));
   const oP=TFS.map(tf=>bbG('/v5/market/open-interest',{category:'linear',symbol:sym,intervalTime:BBO[tf],limit:3}).catch(()=>null));
-  const hP=bbG('/v5/market/open-interest',{category:'linear',symbol:sym,intervalTime:'15min',limit:48}).catch(()=>null);
+  const hP=bbG('/v5/market/open-interest',{category:'linear',symbol:sym,intervalTime:'15min',limit:200}).catch(()=>null);
   const fP=bbG('/v5/market/funding/history',{category:'linear',symbol:sym,limit:2}).catch(()=>null);
   const[kR,oR,hR,fR]=await Promise.all([Promise.all(kP),Promise.all(oP),hP,fP]);
   const row={symbol:sym};
-  TFS.forEach((tf,i)=>{try{const l=kR[i]?.list;row['p_'+tf]=(l&&l.length>=2)?pct(l[0][4],l[1][4]):null;}catch{row['p_'+tf]=null;}});
+  TFS.forEach((tf,i)=>{try{const l=kR[i]?.list;row['p_'+tf]=(l&&l.length>=2)?pct(l[0][4],l[1][4]):null;if(tf==='1h'&&l&&l.length)row.lastPrice=parseFloat(l[0][4]);}catch{row['p_'+tf]=null;}});
   TFS.forEach((tf,i)=>{try{const l=oR[i]?.list;row['o_'+tf]=(l&&l.length>=2)?pct(l[0].openInterest,l[1].openInterest):null;}catch{row['o_'+tf]=null;}});
   try{const l=hR?.list||[];row.oiH=l.map(x=>parseFloat(x.openInterest)).reverse();row.oiT=l.map(x=>parseInt(x.timestamp)).reverse();}catch{row.oiH=[];row.oiT=[];}
   try{const l=fR?.list;if(l&&l.length){row.fr=parseFloat(l[0].fundingRate)*100;row.frd=l.length>=2?row.fr-parseFloat(l[1].fundingRate)*100:null;}else{row.fr=row.frd=null;}}catch{row.fr=row.frd=null;}
@@ -266,11 +267,11 @@ async function fBB(sym){
 async function fBN(sym){
   const kP=TFS.map(tf=>bnG('/fapi/v1/klines',{symbol:sym,interval:BNK[tf],limit:3}).catch(()=>null));
   const oP=TFS.map(tf=>bnG('/futures/data/openInterestHist',{symbol:sym,period:BNO[tf],limit:3}).catch(()=>null));
-  const hP=bnG('/futures/data/openInterestHist',{symbol:sym,period:'15m',limit:48}).catch(()=>null);
+  const hP=bnG('/futures/data/openInterestHist',{symbol:sym,period:'15m',limit:200}).catch(()=>null);
   const fP=bnG('/fapi/v1/fundingRate',{symbol:sym,limit:2}).catch(()=>null);
   const[kR,oR,hR,fR]=await Promise.all([Promise.all(kP),Promise.all(oP),hP,fP]);
   const row={symbol:sym};
-  TFS.forEach((tf,i)=>{try{const l=kR[i];row['p_'+tf]=(l&&l.length>=2)?pct(l[l.length-1][4],l[l.length-2][4]):null;}catch{row['p_'+tf]=null;}});
+  TFS.forEach((tf,i)=>{try{const l=kR[i];row['p_'+tf]=(l&&l.length>=2)?pct(l[l.length-1][4],l[l.length-2][4]):null;if(tf==='1h'&&l&&l.length)row.lastPrice=parseFloat(l[l.length-1][4]);}catch{row['p_'+tf]=null;}});
   TFS.forEach((tf,i)=>{try{const l=oR[i];row['o_'+tf]=(l&&l.length>=2)?pct(l[l.length-1].sumOpenInterest,l[l.length-2].sumOpenInterest):null;}catch{row['o_'+tf]=null;}});
   try{const l=hR||[];row.oiH=l.map(x=>parseFloat(x.sumOpenInterest));row.oiT=l.map(x=>parseInt(x.timestamp));}catch{row.oiH=[];row.oiT=[];}
   try{if(fR&&fR.length){row.fr=parseFloat(fR[fR.length-1].fundingRate)*100;row.frd=fR.length>=2?row.fr-parseFloat(fR[fR.length-2].fundingRate)*100:null;}else{row.fr=row.frd=null;}}catch{row.fr=row.frd=null;}
@@ -312,31 +313,197 @@ function spark(cv,data,color){
   ctx.beginPath();pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.stroke();
   const lp=pts[pts.length-1];ctx.beginPath();ctx.arc(lp.x,lp.y,2,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
 }
+
+// Interactive OI chart state
+let oiChart={data:[],ts:[],offset:0,zoom:1,dragging:false,dragStartX:0,dragStartOffset:0,hoverIdx:-1};
+
 function drawOI(cv,data,ts){
   if(!data||data.length<2)return;
-  const dpr=window.devicePixelRatio||1,W=cv.offsetWidth||320,H=cv.height;
-  cv.width=W*dpr;cv.height=H*dpr;const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
-  const pad={t:8,r:8,b:22,l:60},cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
-  const mn=Math.min(...data)*.999,mx=Math.max(...data)*1.001,rng=mx-mn||1;
-  const color=data[data.length-1]>=data[0]?'#00d68f':'#ff3355';
-  ctx.fillStyle='#0b0e13';ctx.fillRect(0,0,W,H);
-  for(let i=0;i<=4;i++){const y=pad.t+ch*(1-i/4);ctx.strokeStyle='#1c2333';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();const val=mn+rng*i/4;ctx.fillStyle='#3d5070';ctx.font='9px "IBM Plex Mono"';ctx.textAlign='right';ctx.fillText(fmtOI(val),pad.l-4,y+3);}
-  const step=Math.ceil(data.length/5);ctx.fillStyle='#3d5070';ctx.font='8px "IBM Plex Mono"';ctx.textAlign='center';
-  for(let i=0;i<data.length;i+=step){const x=pad.l+(i/(data.length-1))*cw;const t=ts&&ts[i];if(t){const d=new Date(t);const tsi=new Date(d.getTime()+3*3600000);ctx.fillText(String(tsi.getUTCHours()).padStart(2,'0')+':'+String(tsi.getUTCMinutes()).padStart(2,'0'),x,H-pad.b+13);}}
-  const pts=data.map((v,i)=>({x:pad.l+(i/(data.length-1))*cw,y:pad.t+ch*(1-(v-mn)/rng)}));
-  const g=ctx.createLinearGradient(0,pad.t,0,pad.t+ch);g.addColorStop(0,color+'35');g.addColorStop(1,color+'00');
-  ctx.beginPath();ctx.moveTo(pts[0].x,pad.t+ch);pts.forEach(p=>ctx.lineTo(p.x,p.y));ctx.lineTo(pts[pts.length-1].x,pad.t+ch);ctx.fillStyle=g;ctx.fill();
-  ctx.beginPath();pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.stroke();
-  const lp=pts[pts.length-1];ctx.beginPath();ctx.arc(lp.x,lp.y,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  oiChart.data=data;oiChart.ts=ts||[];
+  oiChart.offset=0;oiChart.zoom=1;oiChart.hoverIdx=-1;
+  _renderOI(cv);
+  _attachOIEvents(cv);
 }
 
+function _renderOI(cv){
+  const {data,ts,offset,zoom,hoverIdx}=oiChart;
+  if(!data||data.length<2)return;
+  const dpr=window.devicePixelRatio||1,W=cv.offsetWidth||400,H=cv.height;
+  cv.width=W*dpr;cv.height=H*dpr;
+  const ctx=cv.getContext('2d');ctx.scale(dpr,dpr);
+  const pad={t:10,r:12,b:28,l:64};
+  const cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
+
+  // Visible window
+  const visCount=Math.max(10,Math.round(data.length/zoom));
+  const maxOffset=Math.max(0,data.length-visCount);
+  const off=Math.max(0,Math.min(maxOffset,Math.round(offset)));
+  const i0=off,i1=Math.min(data.length-1,off+visCount-1);
+  const visible=data.slice(i0,i1+1);
+  const visTs=ts.slice(i0,i1+1);
+
+  const mn=Math.min(...visible)*.9995,mx=Math.max(...visible)*1.0005,rng=mx-mn||1;
+  const color=visible[visible.length-1]>=visible[0]?'#00d68f':'#ff3355';
+
+  // Background
+  ctx.fillStyle='#0b0e13';ctx.fillRect(0,0,W,H);
+
+  // Grid
+  for(let i=0;i<=4;i++){
+    const y=pad.t+ch*(1-i/4);
+    ctx.strokeStyle='#1c2333';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+cw,y);ctx.stroke();
+    ctx.fillStyle='#3d5070';ctx.font='9px "IBM Plex Mono"';ctx.textAlign='right';
+    ctx.fillText(fmtOI(mn+rng*i/4),pad.l-4,y+3);
+  }
+
+  // X labels
+  const labelStep=Math.max(1,Math.ceil(visible.length/6));
+  ctx.fillStyle='#3d5070';ctx.font='9px "IBM Plex Mono"';ctx.textAlign='center';
+  for(let i=0;i<visible.length;i+=labelStep){
+    const x=pad.l+(i/(visible.length-1||1))*cw;
+    const t=visTs[i];
+    if(t){const d=new Date(t);const tsi=new Date(d.getTime()+3*3600000);
+      ctx.fillText(String(tsi.getUTCHours()).padStart(2,'0')+':'+String(tsi.getUTCMinutes()).padStart(2,'0'),x,H-pad.b+16);}
+  }
+
+  // Area + line
+  const pts=visible.map((v,i)=>({x:pad.l+(i/(visible.length-1||1))*cw,y:pad.t+ch*(1-(v-mn)/rng)}));
+  const g=ctx.createLinearGradient(0,pad.t,0,pad.t+ch);
+  g.addColorStop(0,color+'35');g.addColorStop(1,color+'00');
+  ctx.beginPath();ctx.moveTo(pts[0].x,pad.t+ch);
+  pts.forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.lineTo(pts[pts.length-1].x,pad.t+ch);
+  ctx.fillStyle=g;ctx.fill();
+  ctx.beginPath();pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.lineJoin='round';ctx.stroke();
+
+  // Last dot
+  const lp=pts[pts.length-1];
+  ctx.beginPath();ctx.arc(lp.x,lp.y,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+
+  // Hover crosshair
+  if(hoverIdx>=0&&hoverIdx<visible.length){
+    const hp=pts[hoverIdx];
+    ctx.strokeStyle='#3d5070';ctx.lineWidth=1;ctx.setLineDash([3,3]);
+    ctx.beginPath();ctx.moveTo(hp.x,pad.t);ctx.lineTo(hp.x,pad.t+ch);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(pad.l,hp.y);ctx.lineTo(pad.l+cw,hp.y);ctx.stroke();
+    ctx.setLineDash([]);
+    // Tooltip
+    const val=visible[hoverIdx];
+    const t=visTs[hoverIdx];
+    let timeStr='';
+    if(t){const d=new Date(t);const tsi=new Date(d.getTime()+3*3600000);
+      const dd=String(tsi.getUTCDate()).padStart(2,'0');
+      const mm=String(tsi.getUTCMonth()+1).padStart(2,'0');
+      const hh=String(tsi.getUTCHours()).padStart(2,'0');
+      const mi=String(tsi.getUTCMinutes()).padStart(2,'0');
+      timeStr=dd+'/'+mm+' '+hh+':'+mi;
+    }
+    const txt=timeStr+' · '+fmtOI(val);
+    const tw=ctx.measureText(txt).width+16;
+    let tx=hp.x+8,ty=pad.t+8;
+    if(tx+tw>W-8)tx=hp.x-tw-8;
+    ctx.fillStyle='#1c2840';ctx.strokeStyle='#2d7aff';ctx.lineWidth=1;
+    ctx.beginPath();ctx.roundRect(tx,ty,tw,20,3);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#d8e8f8';ctx.font='10px "IBM Plex Mono"';ctx.textAlign='left';
+    ctx.fillText(txt,tx+8,ty+14);
+  }
+
+  // Scroll indicator
+  if(data.length>visCount){
+    const barW=cw*(visCount/data.length);
+    const barX=pad.l+cw*(off/data.length);
+    ctx.fillStyle='#1c2333';ctx.beginPath();ctx.roundRect(pad.l,H-6,cw,3,2);ctx.fill();
+    ctx.fillStyle='#2d7aff';ctx.beginPath();ctx.roundRect(barX,H-6,barW,3,2);ctx.fill();
+  }
+}
+
+function _attachOIEvents(cv){
+  // Remove old listeners by cloning
+  const nc=cv.cloneNode(true);
+  cv.parentNode.replaceChild(nc,cv);
+  // Update reference
+  document.getElementById('d-canvas').__oi=nc;
+
+  // Mouse wheel = zoom
+  nc.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const delta=e.deltaY>0?0.8:1.25;
+    const oldZoom=oiChart.zoom;
+    oiChart.zoom=Math.max(1,Math.min(20,oiChart.zoom*delta));
+    // Keep center point stable
+    const rect=nc.getBoundingClientRect();
+    const mx=(e.clientX-rect.left)/rect.width;
+    const visCount=oiChart.data.length/oldZoom;
+    const newVisCount=oiChart.data.length/oiChart.zoom;
+    oiChart.offset+=mx*(visCount-newVisCount);
+    _renderOI(nc);
+  },{passive:false});
+
+  // Mouse drag = pan
+  nc.addEventListener('mousedown',e=>{
+    oiChart.dragging=true;
+    oiChart.dragStartX=e.clientX;
+    oiChart.dragStartOffset=oiChart.offset;
+    nc.style.cursor='grabbing';
+  });
+  window.addEventListener('mouseup',()=>{oiChart.dragging=false;if(nc)nc.style.cursor='crosshair';});
+  nc.addEventListener('mousemove',e=>{
+    if(oiChart.dragging){
+      const rect=nc.getBoundingClientRect();
+      const visCount=oiChart.data.length/oiChart.zoom;
+      const dx=(e.clientX-oiChart.dragStartX)/rect.width*visCount;
+      oiChart.offset=oiChart.dragStartOffset-dx;
+      _renderOI(nc);
+    } else {
+      // Hover
+      const rect=nc.getBoundingClientRect();
+      const dpr=window.devicePixelRatio||1;
+      const W=rect.width,pad={l:64,r:12,t:10,b:28};
+      const cw=W-pad.l-pad.r;
+      const mx=e.clientX-rect.left;
+      const visCount=Math.max(10,Math.round(oiChart.data.length/oiChart.zoom));
+      const fi=Math.round((mx-pad.l)/cw*(visCount-1));
+      oiChart.hoverIdx=Math.max(0,Math.min(visCount-1,fi));
+      _renderOI(nc);
+    }
+  });
+  nc.addEventListener('mouseleave',()=>{oiChart.hoverIdx=-1;_renderOI(nc);});
+
+  // Touch support
+  let lastTouchX=0,lastPinchDist=0;
+  nc.addEventListener('touchstart',e=>{
+    if(e.touches.length===1){oiChart.dragging=true;lastTouchX=e.touches[0].clientX;oiChart.dragStartOffset=oiChart.offset;}
+    if(e.touches.length===2){lastPinchDist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
+  },{passive:true});
+  nc.addEventListener('touchmove',e=>{
+    if(e.touches.length===1&&oiChart.dragging){
+      const rect=nc.getBoundingClientRect();
+      const visCount=oiChart.data.length/oiChart.zoom;
+      const dx=(e.touches[0].clientX-lastTouchX)/rect.width*visCount;
+      lastTouchX=e.touches[0].clientX;
+      oiChart.offset-=dx;_renderOI(nc);
+    }
+    if(e.touches.length===2){
+      const dist=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+      const delta=dist/lastPinchDist;
+      oiChart.zoom=Math.max(1,Math.min(20,oiChart.zoom*delta));
+      lastPinchDist=dist;_renderOI(nc);
+    }
+  },{passive:true});
+  nc.addEventListener('touchend',()=>{oiChart.dragging=false;});
+  nc.style.cursor='crosshair';
+}
+
+
 function buildHeader(){
-  const thead=document.getElementById('thead');thead.innerHTML='';const tfn=TFS.length;
+  const thead=document.getElementById('thead');thead.innerHTML='';
   const gr=document.createElement('tr');
-  gr.innerHTML=`<th rowspan="2" style="width:130px;text-align:left">Symbol</th><th colspan="${tfn}" class="th-grp gl">PRICE %</th><th colspan="${tfn}" class="th-grp gl">OPEN INTEREST %</th><th rowspan="2" class="th-grp gl" style="width:80px;font-size:8px;vertical-align:middle">OI TREND</th><th colspan="2" class="th-grp gl">FUNDING</th>`;
+  gr.innerHTML=`<th rowspan="2" style="width:130px;text-align:left">Symbol</th><th colspan="${PTFS.length}" class="th-grp gl">PRICE %</th><th colspan="${TFS.length}" class="th-grp gl">OPEN INTEREST %</th><th rowspan="2" class="th-grp gl" style="width:80px;font-size:8px;vertical-align:middle">OI TREND</th><th colspan="2" class="th-grp gl">FUNDING</th>`;
   thead.appendChild(gr);
   const sr=document.createElement('tr');
-  TFS.forEach((tf,i)=>{const th=document.createElement('th');th.dataset.col='p_'+tf;th.style.width='62px';if(i===0)th.classList.add('gl');th.textContent=tf;sr.appendChild(th);});
+  PTFS.forEach((tf,i)=>{const th=document.createElement('th');th.dataset.col='p_'+tf;th.style.width='90px';if(i===0)th.classList.add('gl');th.textContent=tf;sr.appendChild(th);});
   TFS.forEach((tf,i)=>{const th=document.createElement('th');th.dataset.col='o_'+tf;th.style.width='62px';if(i===0)th.classList.add('gl');th.textContent=tf;sr.appendChild(th);});
   ['fr','frd'].forEach((col,i)=>{const th=document.createElement('th');th.dataset.col=col;th.style.width=i===0?'70px':'60px';if(i===0)th.classList.add('gl');th.textContent=i===0?'Last':'Δ';sr.appendChild(th);});
   thead.appendChild(sr);updSortUI();
@@ -347,6 +514,7 @@ function updSortUI(){document.querySelectorAll('th[data-col]').forEach(th=>{th.c
 const fmtP=v=>{if(v==null||!isFinite(v))return null;return(v>=0?'+':'')+v.toFixed(2)+'%';};
 const fmtOI=v=>{if(!isFinite(v))return'—';if(v>=1e9)return(v/1e9).toFixed(2)+'B';if(v>=1e6)return(v/1e6).toFixed(1)+'M';if(v>=1e3)return(v/1e3).toFixed(0)+'K';return v.toFixed(0);};
 const fmtVol=v=>{if(!v||!isFinite(v))return'—';if(v>=1e9)return'$'+(v/1e9).toFixed(1)+'B';if(v>=1e6)return'$'+(v/1e6).toFixed(0)+'M';return'$'+v.toFixed(0);};
+const fmtPrice=v=>{if(!v||!isFinite(v))return'—';if(v>=1000)return'$'+v.toLocaleString('en',{minimumFractionDigits:2,maximumFractionDigits:2});if(v>=1)return'$'+v.toFixed(4);return'$'+v.toFixed(6);};
 function pCell(v,gl=false){const t=fmtP(v);if(t===null)return`<td class="na${gl?' gl':''}">—</td>`;const c=v>2?'hi3':v>0?'hi2':v<-2?'lo3':v<0?'lo2':'zero';return`<td class="${c}${gl?' gl':''}">${t}</td>`;}
 function frCell(v,gl=false){const t=fmtP(v);if(t===null)return`<td class="na${gl?' gl':''}">—</td>`;const c=v>0.01?'pos':v<-0.01?'neg':'zero';return`<td class="${c}${gl?' gl':''}">${t}</td>`;}
 
@@ -360,7 +528,7 @@ function renderTable(){
     const base=r.symbol.replace(/USDT$/,'');
     const dots=(r.ex||[]).map(e=>`<span class="edot ${e}"></span>`).join('');
     const isSel=selSym===r.symbol;
-    return`<tr class="dr${isSel?' sel':''}" data-idx="${i}"><td><span class="sn">${base}<span class="sq">USDT</span></span><span class="se">${dots}</span></td>${TFS.map((tf,j)=>pCell(r['p_'+tf],j===0)).join('')}${TFS.map((tf,j)=>pCell(r['o_'+tf],j===0)).join('')}<td class="spk gl"><canvas width="80" height="26" data-idx="${i}"></canvas></td>${frCell(r.fr,true)}${frCell(r.frd)}</tr>`;
+    return`<tr class="dr${isSel?' sel':''}" data-idx="${i}"><td><span class="sn">${base}<span class="sq">USDT</span></span><span class="se">${dots}</span></td>${PTFS.map((tf,j)=>pCell(r['p_'+tf],j===0)).join('')}${TFS.map((tf,j)=>pCell(r['o_'+tf],j===0)).join('')}<td class="spk gl"><canvas width="80" height="26" data-idx="${i}"></canvas></td>${frCell(r.fr,true)}${frCell(r.frd)}</tr>`;
   }).join('');
   data.forEach((r,i)=>{
     const c=tbody.querySelector(`canvas[data-idx="${i}"]`);
@@ -375,6 +543,8 @@ function openD(r){selSym=r.symbol;renderDetail(r);document.getElementById('detai
 function renderDetail(r){
   const base=r.symbol.replace(/USDT$/,'');
   document.getElementById('d-sn').textContent=base;
+  const priceStr=r.lastPrice?fmtPrice(r.lastPrice):'—';
+  document.getElementById('d-price').textContent=priceStr;
   document.getElementById('d-meta').innerHTML=(r.ex||[]).map(e=>`<span class="dpill">${e.toUpperCase()}</span>`).join('')+`<span class="dpill">Vol: ${fmtVol(r.vol)}</span>`;
   const sc=v=>v!=null&&isFinite(v)?(v>0?'pos':v<0?'neg':''):'';
   const sv=(v,d=2)=>v!=null&&isFinite(v)?((v>=0?'+':'')+v.toFixed(d)+'%'):'—';
@@ -384,7 +554,7 @@ function renderDetail(r){
     ['Funding',r.fr,4],['FR Delta',r.frd,4],['OI 1d',r['o_1d']]
   ].map(([l,v,d])=>`<div class="dst"><div class="dsl">${l}</div><div class="dsv ${sc(v)}">${sv(v,d||2)}</div></div>`).join('');
   document.getElementById('d-tf-body').innerHTML=[['Price %','p_'],['OI %','o_']].map(([l,k])=>`<tr><td>${l}</td>${TFS.map(tf=>{const v=r[k+tf];const t=fmtP(v);const c=v>2?'hi3':v>0?'hi2':v<-2?'lo3':v<0?'lo2':'zero';return t?`<td class="${c}">${t}</td>`:`<td class="na">—</td>`;}).join('')}</tr>`).join('');
-  requestAnimationFrame(()=>{const cv=document.getElementById('d-canvas');if(r.oiH&&r.oiH.length>=2)drawOI(cv,r.oiH,r.oiT||[]);});
+  requestAnimationFrame(()=>{const cv=document.getElementById('d-canvas');oiChart={data:[],ts:[],offset:0,zoom:1,dragging:false,dragStartX:0,dragStartOffset:0,hoverIdx:-1};if(r.oiH&&r.oiH.length>=2)drawOI(cv,r.oiH,r.oiT||[]);});
 }
 function closeD(){document.getElementById('detail-pane').classList.remove('open');selSym=null;}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeD();});
