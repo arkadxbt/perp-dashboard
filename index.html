@@ -183,7 +183,7 @@ tr.dr.sel td{background:#0d1a30 !important;border-bottom-color:#1a3060;}
     <div class="tb-ctrl"><label>Top</label><input type="number" id="topN" value="100" min="5" max="200" step="5"/></div>
     <div class="tb-ctrl"><label>Refresh</label><select id="refSel"><option value="10">10s</option><option value="20" selected>20s</option><option value="30">30s</option><option value="60">60s</option><option value="120">120s</option></select></div>
     <div class="tb-ctrl"><label>Sort</label>
-      <select id="sortSel"><option value="vol">Volume</option><option value="price_5m">Price 5m</option><option value="price_15m">Price 15m</option><option value="price_1h">Price 1h</option><option value="price_4h">Price 4h</option><option value="price_1d">Price 1d</option><option value="oi_5m">OI 5m</option><option value="oi_15m">OI 15m</option><option value="oi_1h">OI 1h</option><option value="oi_4h">OI 4h</option><option value="oi_1d">OI 1d</option><option value="fr_last">Funding</option></select>
+      <select id="sortSel"><option value="vol">Volume</option><option value="p_1h">Price 1h</option><option value="p_1d">Price 1d</option><option value="o_5m">OI 5m</option><option value="o_15m">OI 15m</option><option value="o_1h">OI 1h</option><option value="o_4h">OI 4h</option><option value="o_1d">OI 1d</option><option value="fr">Funding Rate</option><option value="frd">FR Delta</option></select>
       <select id="dirSel"><option value="desc">↓</option><option value="asc">↑</option></select>
     </div>
     <div class="tb-ctrl"><input type="text" id="srch" placeholder="Search…"/></div>
@@ -225,7 +225,7 @@ tr.dr.sel td{background:#0d1a30 !important;border-bottom-color:#1a3060;}
 </div>
 <script>
 const BB='https://api.bybit.com',BN='https://fapi.binance.com';
-const TFS=['5m','15m','1h','4h','1d'];
+const PTFS=['1h','1d'];const TFS=['5m','15m','1h','4h','1d'];
 const BBK={'5m':'5','15m':'15','1h':'60','4h':'240','1d':'D'};
 const BBO={'5m':'5min','15m':'15min','1h':'1h','4h':'4h','1d':'1d'};
 const BNK={'5m':'5m','15m':'15m','1h':'1h','4h':'4h','1d':'1d'};
@@ -352,7 +352,7 @@ function frCell(v,gl=false){const t=fmtP(v);if(t===null)return`<td class="na${gl
 
 function renderTable(){
   const q=searchQ.toLowerCase();
-  let data=rows.filter(r=>r.symbol.toLowerCase().includes(q));
+  let data=rows.filter(r=>r.symbol.toLowerCase().includes(q)).filter(r=>TFS.some(tf=>r['o_'+tf]!==null&&isFinite(r['o_'+tf])));
   data.sort((a,b)=>{let av=a[sortCol],bv=b[sortCol];av=(av==null)?(sortDir==='desc'?-Infinity:Infinity):av;bv=(bv==null)?(sortDir==='desc'?-Infinity:Infinity):bv;return sortDir==='desc'?bv-av:av-bv;});
   const tbody=document.getElementById('tbody');
   if(!data.length){tbody.innerHTML=`<tr><td colspan="14" style="text-align:center;padding:40px;color:var(--muted)">No results</td></tr>`;return;}
